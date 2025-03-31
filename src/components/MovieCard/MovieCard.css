@@ -1,0 +1,36 @@
+.movie-card {
+  transition: transform 0.2s;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0; /* Adicionado para remover cantos arredondados */
+}
+
+.movie-card.focused {
+  transform: scale(1.1);
+  border: 2px solid #e50914;
+}
+
+.card-media-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 0; /* Adicionado para remover cantos arredondados */
+}
+
+.card-media-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
+
+.card-content {
+  padding: 12px;
+  text-align: center;
+}
+
+.card-title {
+  font-size: 0.9rem;
+  font-weight: bold;
+}

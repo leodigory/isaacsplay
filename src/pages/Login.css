@@ -1,0 +1,156 @@
+body {
+  background-image: url('/public/images/bglogin.jpeg');
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: -1;
+}
+
+.login-form .logo-login {
+  width: 35%;
+  margin-bottom: 20px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.login-container {
+  display: flex;
+  height: 100vh;
+  color: white;
+}
+
+.keyboard-card {
+  width: 40%;
+  max-width: 400px;
+  padding: 20px;
+  background-color: #222;
+  border-radius: 8px;
+  margin: auto 20px;
+  box-sizing: border-box;
+}
+
+.keyboard {
+  display: flex;
+  flex-direction: column;
+}
+
+.keyboard-row {
+  display: flex;
+  margin-bottom: 5px;
+}
+
+.keyboard-key {
+  padding: 10px 15px;
+  margin-right: 5px;
+  border: none;
+  border-radius: 4px;
+  background-color: #333;
+  color: white;
+  cursor: pointer;
+}
+
+.keyboard-key.active,
+.keyboard-key:focus {
+  background-color: #e50914;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 60%;
+  box-sizing: border-box;
+}
+
+.login-form .logo {
+  width: 150px;
+  margin-bottom: 20px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.login-form form {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+}
+
+.login-form input {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: none;
+  border-radius: 4px;
+  background-color: rgba(51, 51, 51, 0.7); /* Cor #333 com 70% de opacidade */
+  color: white;
+  font-size: 1rem;
+}
+
+.login-form input::placeholder {
+  color: #b3b3b3;
+}
+
+.login-form button {
+  padding: 1rem;
+  background-color: #e50914;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.login-form button:hover {
+  background-color: #c20710;
+}
+
+@media (min-width: 769px) {
+  .login-container {
+    flex-direction: row-reverse;
+  }
+
+  .keyboard-card {
+    margin: auto 20px auto auto;
+  }
+
+  .login-form {
+    width: 60%;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .login-form {
+    width: 100%;
+    padding: 20px;
+  }
+
+  .keyboard {
+    position: static;
+    transform: none;
+    width: 100%;
+    margin-top: 20px;
+    box-shadow: none;
+  }
+
+  .keyboard-card {
+    width: 100%;
+    margin: 20px 0;
+  }
+}
