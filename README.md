@@ -75,7 +75,7 @@ Contribuições são bem-vindas! Se você deseja contribuir, siga estas etapas:
 
 ## Licença
 
-[Adicione a licença do projeto, por exemplo, MIT, Apache 2.0, etc.]
+
 
 ## Autor
 
