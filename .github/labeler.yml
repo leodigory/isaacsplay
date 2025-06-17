@@ -1,0 +1,72 @@
+feature:
+  - 'feature/**'
+  - 'feat/**'
+  - '**/feature/**'
+  - '**/feat/**'
+
+bug:
+  - 'bug/**'
+  - 'fix/**'
+  - '**/bug/**'
+  - '**/fix/**'
+
+documentation:
+  - 'docs/**'
+  - '**/docs/**'
+  - '*.md'
+  - '**/*.md'
+
+dependencies:
+  - 'package.json'
+  - 'package-lock.json'
+  - 'yarn.lock'
+  - '**/package.json'
+  - '**/package-lock.json'
+  - '**/yarn.lock'
+
+security:
+  - 'security/**'
+  - '**/security/**'
+  - '**/SECURITY.md'
+
+testing:
+  - 'test/**'
+  - 'tests/**'
+  - '**/test/**'
+  - '**/tests/**'
+  - '*.test.js'
+  - '*.spec.js'
+  - '**/*.test.js'
+  - '**/*.spec.js'
+
+ci:
+  - '.github/workflows/**'
+  - '.github/actions/**'
+  - '.github/workflows/*.yml'
+  - '.github/workflows/*.yaml'
+  - '.github/actions/*.yml'
+  - '.github/actions/*.yaml'
+
+docker:
+  - 'Dockerfile'
+  - 'docker-compose.yml'
+  - 'docker-compose.*.yml'
+  - '**/Dockerfile'
+  - '**/docker-compose.yml'
+  - '**/docker-compose.*.yml'
+
+config:
+  - '.env*'
+  - '.eslintrc*'
+  - '.prettierrc*'
+  - '.editorconfig'
+  - '.gitignore'
+  - '.npmrc'
+  - '.nvmrc'
+  - '**/.env*'
+  - '**/.eslintrc*'
+  - '**/.prettierrc*'
+  - '**/.editorconfig'
+  - '**/.gitignore'
+  - '**/.npmrc'
+  - '**/.nvmrc' 

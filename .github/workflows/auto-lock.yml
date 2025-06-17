@@ -1,0 +1,39 @@
+name: Auto Lock
+
+on:
+  issues:
+    types: [closed]
+  pull_request:
+    types: [closed]
+
+jobs:
+  auto-lock:
+    runs-on: ubuntu-latest
+    if: github.event.issue.state == 'closed' || github.event.pull_request.state == 'closed'
+    steps:
+      - name: Auto Lock
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue || context.payload.pull_request;
+            const labels = issue.labels.map(label => label.name);
+            
+            // Don't lock if it has certain labels
+            if (labels.includes('keep-open') || labels.includes('pinned')) {
+              return;
+            }
+            
+            // Wait for 30 days before locking
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            const closedAt = new Date(issue.closed_at);
+            if (closedAt < thirtyDaysAgo) {
+              github.rest.issues.lock({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                lock_reason: 'resolved'
+              });
+            } 
