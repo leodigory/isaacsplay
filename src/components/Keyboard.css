@@ -1,0 +1,70 @@
+.keyboard {
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(20, 20, 20, 0.6); /* #141414 com 80% de opacidade */
+    border-radius: 5px;
+    padding: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    width: fit-content;
+    margin: 0;
+    position: absolute;
+    top: 58%;
+    right: 50%;
+    transform: translateY(-50%);
+    z-index: 1000;
+  }
+  
+  .keyboard-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 3px;
+  }
+  
+  .keyboard-key {
+    padding: 5px 8px;
+    margin: 2px;
+    border: 1px solid rgba(51, 51, 51, 0.5); /* #333 com 50% de opacidade na borda */
+    border-radius: 3px;
+    background-color: rgba(51, 51, 51, 0.5); /* #333 com 50% de opacidade */
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    min-width: 25px;
+    text-align: center;
+    box-shadow: none;
+    transition: background-color 0.3s ease;
+  }
+  
+  .keyboard-key:hover {
+    background-color: rgba(68, 68, 68, 0.5); /* #444 com 50% de opacidade */
+  }
+  
+  .keyboard-key:focus {
+    outline: none;
+    background-color: rgba(85, 85, 85, 0.5); /* #555 com 50% de opacidade */
+  }
+  
+  .keyboard-ok {
+    background-color: rgba(229, 9, 20, 0.8); /* #e50914 com 80% de opacidade */
+    color: white;
+    border: none;
+  }
+  
+  .keyboard-ok:hover {
+    background-color: rgba(194, 0, 11, 0.8); /* #c2000b com 80% de opacidade */
+  }
+  
+  .keyboard-ok:focus {
+    background-color: rgba(159, 0, 9, 0.8); /* #9f0009 com 80% de opacidade */
+  }
+  
+  /* Media query para telas menores (tablets) */
+  @media (max-width: 768px) {
+    .keyboard {
+      position: static;
+      transform: none;
+      width: 100%;
+      margin-top: 20px;
+      box-shadow: none;
+    }
+  }
