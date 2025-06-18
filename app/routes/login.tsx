@@ -76,7 +76,12 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Simular login bem-sucedido para testar navegação
+      console.log("usuario autenticado", { email, uid: "test-user-123" });
+      
+      // Aguardar um pouco para simular o processo de autenticação
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       window.location.href = "/home";
     } catch (err: any) {
       setError("Email ou senha inválidos");
@@ -195,19 +200,20 @@ export default function Login() {
 
   // Layout Netflix-like lado a lado, com imagem de fundo e logo centralizada
   return (
-    <div style={{ minHeight: "100dvh", minWidth: "100vw", height: "100dvh", width: "100vw", background: `#111 url('/back.png') center center / cover no-repeat`, color: "#fff", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "center", position: "relative", overflow: 'hidden' }}>
-      <div className="login-title" style={{ width: "100%", textAlign: "center", marginTop: 50, marginBottom: 90 }}>
-        <span style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 90, color: "#fff", fontWeight: 700, letterSpacing: 8, textShadow: "0 6px 32px #000", lineHeight: 1, display: 'inline-block', padding: '0 48px', borderRadius: 32, textTransform: 'uppercase', letterSpacing: 12, letterSpacing: '0.15em' }}>IsaacPlay</span>
+    <div suppressHydrationWarning style={{ minHeight: "100dvh", minWidth: "100vw", height: "100dvh", width: "100vw", background: `#111 url('/back.png') center center / cover no-repeat`, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", position: "relative", overflow: 'hidden' }}>
+      <div style={{ flex: 1 }} />
+      <div className="login-title" style={{ width: "100%", textAlign: "center", marginTop: 10, marginBottom: 18 }}>
+        <span style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 90, color: "#fff", fontWeight: 700, letterSpacing: '0.15em', textShadow: "0 6px 32px #000", lineHeight: 1, display: 'inline-block', padding: '0 48px', borderRadius: 32, textTransform: 'uppercase' }}>IsaacPlay</span>
       </div>
-      <div className="login-main-row" style={{ display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "flex-start", flex: 1, minHeight: "80vh", marginTop: 0, width: '100%', maxWidth: '100vw', overflow: 'hidden' }}>
-        <form className="login-form" onSubmit={handleSubmit} style={{ background: "#222", padding: 40, borderRadius: 16, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: "0 0 32px #000a", display: "flex", flexDirection: "column", alignItems: "center", marginRight: 48, boxSizing: 'border-box' }}>
+      <div className="login-main-row" style={{ display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "flex-start", minHeight: "auto", marginTop: 0, width: '100%', maxWidth: '100vw', overflow: 'hidden' }}>
+        <form className="login-form" onSubmit={handleSubmit} style={{ background: "#222", padding: 40, borderRadius: 16, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: "0 0 32px #000a", display: "flex", flexDirection: "column", alignItems: "center", marginRight: 48, boxSizing: 'border-box', marginTop: 0 }}>
           <div style={{ marginBottom: 24, width: "100%" }}>
             <label style={{ fontWeight: 600, fontSize: 18 }}>Email</label>
             <input
               ref={emailRef}
               type="text"
               value={email}
-              style={{ width: "100%", padding: 16, borderRadius: 8, border: focusField === "EMAIL" ? "2px solid #e50914" : "none", marginTop: 6, outline: focusField === "EMAIL" ? "2px solid #e50914" : "none", fontSize: 20, background: "#111", color: "#fff" }}
+              style={{ width: "100%", padding: 16, borderRadius: 8, border: focusField === "EMAIL" ? "1px solid #e50914" : "none", marginTop: 6, outline: focusField === "EMAIL" ? "1px solid #e50914" : "none", fontSize: 20, background: "#111", color: "#fff" }}
               onChange={e => setEmail(e.target.value)}
               onClick={() => { setFocusField("EMAIL"); setShowKeyboard("EMAIL"); }}
               tabIndex={focusField === "EMAIL" ? 0 : -1}
@@ -220,7 +226,7 @@ export default function Login() {
               ref={passwordRef}
               type="password"
               value={password}
-              style={{ width: "100%", padding: 16, borderRadius: 8, border: focusField === "PASSWORD" ? "2px solid #e50914" : "none", marginTop: 6, outline: focusField === "PASSWORD" ? "2px solid #e50914" : "none", fontSize: 20, background: "#111", color: "#fff" }}
+              style={{ width: "100%", padding: 16, borderRadius: 8, border: focusField === "PASSWORD" ? "1px solid #e50914" : "none", marginTop: 6, outline: focusField === "PASSWORD" ? "1px solid #e50914" : "none", fontSize: 20, background: "#111", color: "#fff" }}
               onChange={e => setPassword(e.target.value)}
               onClick={() => { setFocusField("PASSWORD"); setShowKeyboard("PASSWORD"); }}
               tabIndex={focusField === "PASSWORD" ? 0 : -1}
@@ -237,10 +243,10 @@ export default function Login() {
               borderRadius: 8,
               background: focusField === "BUTTON" ? "#b00610" : "#e50914",
               color: "#fff",
-              border: focusField === "BUTTON" ? "2px solid #fff" : "none",
+              border: focusField === "BUTTON" ? "1px solid #fff" : "none",
               fontWeight: "bold",
               fontSize: 22,
-              outline: focusField === "BUTTON" ? "2px solid #fff" : "none",
+              outline: focusField === "BUTTON" ? "1px solid #fff" : "none",
               marginTop: 12
             }}
             onClick={() => setFocusField("BUTTON")}
@@ -251,7 +257,7 @@ export default function Login() {
           <div style={{ marginTop: 24, fontSize: 15, color: "#aaa", width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span
               style={{
-                display: "flex", alignItems: "center", border: focusField === "REMEMBER" ? "2px solid #e50914" : "none", borderRadius: 6, padding: focusField === "REMEMBER" ? 2 : 0, background: focusField === "REMEMBER" ? "#181818" : "none"
+                display: "flex", alignItems: "center", border: focusField === "REMEMBER" ? "1px solid #e50914" : "none", borderRadius: 6, padding: focusField === "REMEMBER" ? 2 : 0, background: focusField === "REMEMBER" ? "#181818" : "none"
               }}
               tabIndex={focusField === "REMEMBER" ? 0 : -1}
               onClick={() => setFocusField("REMEMBER")}
@@ -292,6 +298,7 @@ export default function Login() {
           )}
         </div>
       </div>
+      <div style={{ flex: 2 }} />
       <div
         style={{ position: "absolute", bottom: 24, left: 0, right: 0, textAlign: "center", color: focusField === "HELP" ? "#fff" : "#888", fontSize: 13, fontWeight: focusField === "HELP" ? "bold" : "normal", textDecoration: focusField === "HELP" ? "underline" : "none", cursor: "pointer" }}
         tabIndex={focusField === "HELP" ? 0 : -1}
