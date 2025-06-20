@@ -281,6 +281,47 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ---
 
+## 🧑‍🎤 **Seleção e Gerenciamento de Perfis (Netflix-like)**
+
+### 👥 **Tela de Perfis**
+- Após o login, o usuário é levado para uma tela de seleção de perfis inspirada na Netflix.
+- Até 5 perfis por conta, cada um com nome, avatar e opção infantil.
+- Todos os perfis e o botão "Adicionar Perfil" são navegáveis por teclado, controle remoto e mouse.
+- O foco visual é destacado com borda branca, igual ao login.
+- Navegação:
+  - **⬅️➡️**: Move entre perfis e "Adicionar Perfil".
+  - **⬇️**: Vai para o botão "Gerenciar Perfis".
+  - **⬆️**: Volta para o último perfil ou botão de adicionar que estava focado.
+  - **Enter**: Seleciona o perfil, abre adicionar ou gerenciar.
+
+### ➕ **Adicionar Perfil**
+- Carrossel de avatares: escolha entre 8 estilos diferentes, navegando com as setas.
+- Foco inicial no avatar; Enter move para o input de nome.
+- Nome sugerido automaticamente (prefixo do email), editável.
+- Opção de marcar como perfil infantil.
+- Botão "Salvar" adiciona o perfil ao Firestore do usuário logado, sem sobrescrever os outros.
+- Botão "Cancelar" retorna para a tela de seleção de perfis.
+
+### 🛠️ **Gerenciar Perfis**
+- Tela dedicada para gerenciamento (em breve: editar nome, avatar, favoritos, etc).
+- Navegação por teclado/controle garantida.
+
+### 🔄 **Navegação e Acessibilidade**
+- Todos os elementos navegáveis têm ids previsíveis e únicos.
+- O foco inicial sempre começa no primeiro perfil.
+- O botão "Gerenciar Perfis" lembra o último item focado acima dele para navegação intuitiva.
+- Totalmente funcional para TV, desktop e mobile.
+
+### 🔥 **Exemplo de fluxo**
+```
+1. Login com email/senha
+2. Seleciona perfil (⬅️➡️⬇️⬆️ Enter)
+3. Adiciona novo perfil (carrossel de avatar, input de nome, salvar)
+4. Gerencia perfis existentes
+```
+
+---
+
 <div align="center">
 
 **Feito com ❤️ para uma experiência de login incrível**

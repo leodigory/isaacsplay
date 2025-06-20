@@ -1,27 +1,36 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, db } from "../firebase";
 import VirtualKeyboard from "../components/VirtualKeyboard";
+import NavigationItem from "../components/NavigationItem";
+import { useNavigation } from "../services/NavigationService";
+import type { NavigationAction } from "../services/NavigationService";
+import logoLight from "../welcome/logo-light.png";
 
-const FOCUS = {
-  EMAIL: 0,
-  PASSWORD: 1,
-  BUTTON: 2,
-  REMEMBER: 3,
-  FORGOT: 4,
-  HELP: 5
+const SCOPES = {
+  LOGIN: 'login',
+  KEYBOARD: 'keyboard',
 } as const;
-type FocusType = keyof typeof FOCUS;
-const focusOrder: FocusType[] = ["EMAIL", "PASSWORD", "BUTTON", "REMEMBER", "FORGOT", "HELP"];
 
-// Mapeamento de navegação livre
-const focusMatrix: Record<FocusType, Partial<Record<"up" | "down" | "left" | "right", FocusType>>> = {
-  EMAIL:    { down: "PASSWORD", up: "HELP", left: "EMAIL", right: "EMAIL" },
-  PASSWORD: { up: "EMAIL", down: "BUTTON", left: "PASSWORD", right: "PASSWORD" },
-  BUTTON:   { up: "PASSWORD", down: "REMEMBER", left: "BUTTON", right: "BUTTON" },
-  REMEMBER: { up: "BUTTON", down: "HELP", left: "REMEMBER", right: "FORGOT" },
-  FORGOT:   { up: "BUTTON", down: "HELP", left: "REMEMBER", right: "FORGOT" },
-  HELP:     { up: "REMEMBER", down: "EMAIL", left: "HELP", right: "HELP" }
+// Navigation IDs
+const NAV = {
+  EMAIL: 'login_email',
+  PASSWORD: 'login_password',
+  BUTTON: 'login_button',
+  REMEMBER: 'login_remember',
+  FORGOT: 'login_forgot',
+  HELP: 'login_help'
+} as const;
+
+// Navigation map
+const navigationMap = {
+  [NAV.EMAIL]: { down: NAV.PASSWORD, up: NAV.HELP },
+  [NAV.PASSWORD]: { up: NAV.EMAIL, down: NAV.BUTTON },
+  [NAV.BUTTON]: { up: NAV.PASSWORD, down: NAV.REMEMBER },
+  [NAV.REMEMBER]: { up: NAV.BUTTON, down: NAV.HELP, right: NAV.FORGOT },
+  [NAV.FORGOT]: { up: NAV.BUTTON, down: NAV.HELP, left: NAV.REMEMBER },
+  [NAV.HELP]: { up: NAV.REMEMBER, down: NAV.EMAIL }
 };
 
 export default function Login() {
@@ -29,253 +38,46 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [focusField, setFocusField] = useState<FocusType>("EMAIL");
-  const [showKeyboard, setShowKeyboard] = useState<FocusType | null>(null);
+  const [showKeyboard, setShowKeyboard] = useState(false);
+  const [keyboardTarget, setKeyboardTarget] = useState<typeof NAV.EMAIL | typeof NAV.PASSWORD | null>(null);
   const [remember, setRemember] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  // Detecta se está em modo mobile (tela pequena)
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 600);
-    checkMobile();
-    window.addEventListener('resize', checkMobile, { passive: true });
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  const { isMobile, setFocus, setActiveScope, currentFocus, activeScope } = useNavigation();
 
-  // Foco real no input ao abrir o teclado virtual ou mudar o campo de foco
+  // Load remembered email on initial render
   useEffect(() => {
-    if (showKeyboard === "EMAIL" || focusField === "EMAIL") {
-      emailRef.current?.focus();
-    } else if (showKeyboard === "PASSWORD" || focusField === "PASSWORD") {
-      passwordRef.current?.focus();
+    const rememberedEmail = localStorage.getItem('isaacplay-remembered-email');
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+      setRemember(true);
     }
-  }, [showKeyboard, focusField]);
-
-  // Foco no input ao digitar com teclado físico mesmo com teclado virtual aberto
-  useEffect(() => {
-    if (!showKeyboard) return;
-    const handlePhysicalType = (e: KeyboardEvent) => {
-      if (typeof e.key === "string" && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (showKeyboard === "EMAIL") {
-          emailRef.current?.focus();
-        } else if (showKeyboard === "PASSWORD") {
-          passwordRef.current?.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", handlePhysicalType, { passive: true });
-    return () => window.removeEventListener("keydown", handlePhysicalType);
-  }, [showKeyboard]);
-
-  // Força atualização dos valores dos inputs após autocomplete (apenas no mount)
-  useEffect(() => {
-    setTimeout(() => {
-      if (emailRef.current) setEmail(emailRef.current.value);
-      if (passwordRef.current) setPassword(passwordRef.current.value);
-    }, 100);
   }, []);
 
-  // Navegação livre entre todos os elementos
-  useEffect(() => {
-    if (loading || showKeyboard) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      let next: FocusType | undefined;
-      if (e.key === "ArrowDown") next = focusMatrix[focusField].down;
-      else if (e.key === "ArrowUp") next = focusMatrix[focusField].up;
-      else if (e.key === "ArrowLeft") next = focusMatrix[focusField].left;
-      else if (e.key === "ArrowRight") next = focusMatrix[focusField].right;
-      else if (e.key === "Tab") next = focusOrder[(focusOrder.indexOf(focusField) + 1) % focusOrder.length];
-      if (next) {
-        setFocusField(next);
-        e.preventDefault();
-        return;
-      }
-      if (e.key === "Enter") {
-        if (focusField === "EMAIL" || focusField === "PASSWORD") {
-          setShowKeyboard(focusField);
-        } else if (focusField === "BUTTON") {
-          handleSubmit();
-        } else if (focusField === "REMEMBER") {
-          setRemember(r => !r);
-        } else if (focusField === "FORGOT") {
-          window.alert("Recuperação de senha não implementada.");
-        } else if (focusField === "HELP") {
-          window.open("https://helpisaacplay.com", "_blank");
-        }
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusField, loading, showKeyboard]);
-
-  // Se o input estiver com foco e o usuário apertar para o lado no final do texto, ou ESC, o foco sai do input e vai para o teclado virtual (mas não fecha o teclado)
-  useEffect(() => {
-    if (!showKeyboard) return;
-    const handleInputNav = (e: KeyboardEvent) => {
-      if (focusField === "EMAIL" && document.activeElement === emailRef.current) {
-        const val = emailRef.current?.value || "";
-        const pos = emailRef.current?.selectionStart || 0;
-        if ((e.key === "ArrowRight" && pos === val.length) || (e.key === "Escape")) {
-          setShowKeyboard("EMAIL");
-          setTimeout(() => {
-            (emailRef.current as HTMLInputElement | null)?.blur();
-            const vk = document.querySelector('.virtual-keyboard');
-            if (vk) {
-              const focused = vk.querySelector('button[tabindex="0"]');
-              if (focused) (focused as HTMLButtonElement).focus();
-            }
-          }, 0);
-        }
-      } else if (focusField === "PASSWORD" && document.activeElement === passwordRef.current) {
-        const val = passwordRef.current?.value || "";
-        const pos = passwordRef.current?.selectionStart || 0;
-        if ((e.key === "ArrowRight" && pos === val.length) || (e.key === "Escape")) {
-          setShowKeyboard("PASSWORD");
-          setTimeout(() => {
-            (passwordRef.current as HTMLInputElement | null)?.blur();
-            const vk = document.querySelector('.virtual-keyboard');
-            if (vk) {
-              const focused = vk.querySelector('button[tabindex="0"]');
-              if (focused) (focused as HTMLButtonElement).focus();
-            }
-          }, 0);
-        }
-      }
-    };
-    window.addEventListener("keydown", handleInputNav);
-    return () => window.removeEventListener("keydown", handleInputNav);
-  }, [focusField, showKeyboard]);
-
-  // Handlers do teclado virtual otimizados com useCallback
-  const handleKeyboardInput = useCallback((val: string) => {
-    if (typeof val !== "string") return;
-    if (showKeyboard === "EMAIL") setEmail(email + val);
-    else if (showKeyboard === "PASSWORD") setPassword(password + val);
-  }, [email, password, showKeyboard]);
-
-  const handleKeyboardBackspace = useCallback(() => {
-    if (showKeyboard === "EMAIL") setEmail(email.slice(0, -1));
-    else if (showKeyboard === "PASSWORD") setPassword(password.slice(0, -1));
-  }, [email, password, showKeyboard]);
-
-  const handleKeyboardConfirm = useCallback(() => {
-    if (showKeyboard === "EMAIL") {
-      setShowKeyboard("PASSWORD");
-      setFocusField("PASSWORD");
-    } else if (showKeyboard === "PASSWORD") {
-      setShowKeyboard(null);
-      setFocusField("BUTTON");
-    }
-  }, [showKeyboard]);
-
-  const handleKeyboardEsc = useCallback(() => {
-    setShowKeyboard(null);
-    setFocusField("EMAIL");
-    setTimeout(() => {
-      emailRef.current?.focus();
-    }, 0);
-  }, []);
-
-  // Estilos otimizados com useMemo
-  const loginMainRowStyle = useMemo(() => ({
-    display: "flex",
-    flexDirection: isMobile ? 'column' : 'row' as 'row' | 'column',
-    justifyContent: "center",
-    alignItems: "center",
-    width: '100%',
-    maxWidth: '100vw',
-    overflow: 'visible',
-    gap: 0,
-    position: ("relative" as "relative"),
-    minHeight: 480,
-    height: 480,
-  }), [isMobile]);
-
-  const loginFormContainerStyle = useMemo(() => ({
-    position: isMobile ? ('static' as 'static') : ('relative' as 'relative'),
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: isMobile ? '100%' : (showKeyboard ? 480 : 450),
-    height: 400,
-    transition: isMobile ? 'none' : 'width 0.5s cubic-bezier(.4,0,.2,1)',
-    flexDirection: isMobile ? 'column' : 'row' as 'row' | 'column',
-  }), [isMobile, showKeyboard]);
-
-  const loginFormStyle = useMemo(() => ({
-    background: "#222",
-    padding: 40,
-    borderRadius: 16,
-    minWidth: 320,
-    maxWidth: 420,
-    width: isMobile ? '100%' : 420,
-    minHeight: 400,
-    height: 400,
-    boxShadow: "0 0 32px #000a",
-    display: "flex",
-    flexDirection: "column" as 'column',
-    alignItems: "center",
-    justifyContent: "center",
-    boxSizing: 'border-box' as 'border-box',
-    zIndex: 2,
-    position: isMobile ? ('static' as 'static') : ('absolute' as 'absolute'),
-    left: isMobile ? undefined : 0,
-    top: isMobile ? undefined : 0,
-    right: 'auto',
-    bottom: 'auto',
-    transform: isMobile ? 'none' : (showKeyboard ? 'translateX(-230px)' : 'translateX(0)'),
-    transition: isMobile ? 'none' : 'transform 0.5s cubic-bezier(.4,0,.2,1)',
-  }), [isMobile, showKeyboard, focusField]);
-
-  const keyboardStyle = useMemo(() => ({
-    position: 'absolute' as 'absolute',
-    left: showKeyboard ? 190 : 210,
-    top: 0,
-    minWidth: 400,
-    maxWidth: 520,
-    width: 600,
-    minHeight: 400,
-    height: 400,
-    display: "flex",
-    flexDirection: "column" as 'column',
-    alignItems: "center",
-    justifyContent: "center",
-    boxSizing: 'border-box' as 'border-box',
-    transition: "left 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s cubic-bezier(.4,0,.2,1)",
-    opacity: showKeyboard ? 1 : 0,
-    zIndex: 1,
-    pointerEvents: (showKeyboard ? 'auto' : 'none') as 'auto' | 'none',
-    boxShadow: '0 4px 32px #0008',
-    background: 'rgba(0,0,0,0.55)',
-    borderRadius: 24,
-    padding: 32,
-  }), [showKeyboard]);
-
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
-    // Validações básicas
+    // Basic validations
     if (!email.trim()) {
       setError("Por favor, insira seu email");
-      setFocusField("EMAIL");
+      setFocus(NAV.EMAIL);
       return;
     }
     
     if (!password.trim()) {
       setError("Por favor, insira sua senha");
-      setFocusField("PASSWORD");
+      setFocus(NAV.PASSWORD);
       return;
     }
     
-    // Validação básica de email
+    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setError("Por favor, insira um email válido");
-      setFocusField("EMAIL");
+      setFocus(NAV.EMAIL);
       return;
     }
     
@@ -283,24 +85,47 @@ export default function Login() {
     setError("");
     
     try {
-      // Verificar se o Firebase está configurado
-      if (!auth) {
+      // Check if Firebase is configured
+      if (!auth || !db) {
         throw new Error("Firebase não está configurado corretamente");
       }
       
-      // Autenticação real com Firebase
+      // Real Firebase authentication
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
+      // Lógica de criação de perfil
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists() || !userSnap.data().profiles?.length) {
+        // Cria o primeiro perfil se não existir nenhum
+        const profileName = email.split('@')[0];
+        await setDoc(userRef, {
+          profiles: [{
+            id: 'default',
+            name: profileName,
+            avatarUrl: `https://api.dicebear.com/8.x/initials/svg?seed=${profileName}`
+          }]
+        }, { merge: true });
+      }
+      
       console.log("Usuário autenticado com sucesso:", { email: user.email, uid: user.uid });
       
-      // Redirecionar para home após login bem-sucedido
-      window.location.href = "/home";
+      // Handle "Remember Email" logic
+      if (remember) {
+        localStorage.setItem('isaacplay-remembered-email', email);
+      } else {
+        localStorage.removeItem('isaacplay-remembered-email');
+      }
+
+      // Redirect to profiles screen after successful login
+      window.location.href = "/profiles";
       
     } catch (err: any) {
       console.error("Erro na autenticação:", err);
       
-      // Tratamento específico de erros do Firebase
+      // Specific Firebase error handling
       let errorMessage = "Email ou senha inválidos";
       
       if (err.code === 'auth/user-not-found') {
@@ -322,169 +147,441 @@ export default function Login() {
       }
       
       setError(errorMessage);
-      setPassword(""); // Limpa apenas a senha
-      setShowKeyboard(null);
-      setFocusField("PASSWORD");
-      
-      // Foca no campo de senha para nova tentativa
-      setTimeout(() => {
-        passwordRef.current?.focus();
-      }, 0);
+      setPassword(""); // Clear only password
+      setShowKeyboard(false);
+      setFocus(NAV.PASSWORD);
       
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, setFocus, remember]);
 
-  // Layout Netflix-like lado a lado, com imagem de fundo e logo centralizada
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  // Set initial scope on mount
+  useEffect(() => {
+    setActiveScope(SCOPES.LOGIN);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Set initial focus once the scope is active
+  useEffect(() => {
+    if (activeScope === SCOPES.LOGIN && !currentFocus) {
+      setFocus(NAV.EMAIL);
+    }
+  }, [activeScope, currentFocus, setFocus]);
+
+  // Handle window resizing
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  const closeKeyboard = useCallback(() => {
+    if (keyboardTarget) {
+      const lastTarget = keyboardTarget;
+      setShowKeyboard(false);
+      setKeyboardTarget(null);
+      setActiveScope(SCOPES.LOGIN);
+      setFocus(lastTarget);
+    }
+  }, [keyboardTarget, setActiveScope, setFocus]);
+
+  // Close keyboard on resize
+  useEffect(() => {
+    if (windowWidth <= 1024 && showKeyboard) {
+      closeKeyboard();
+    }
+  }, [windowWidth, showKeyboard, closeKeyboard]);
+
+  // When keyboard becomes visible and its scope is active, focus its first element.
+  useEffect(() => {
+    if (showKeyboard && activeScope === SCOPES.KEYBOARD) {
+      setFocus('kb_1');
+    }
+  }, [showKeyboard, activeScope, setFocus]);
+
+  // When keyboard is open, ensure DOM focus stays on the correct input for physical keyboard typing
+  useEffect(() => {
+    // This effect should ONLY run when the keyboard is visible.
+    if (!showKeyboard || !currentFocus?.startsWith('kb_')) return;
+
+    if (keyboardTarget === NAV.EMAIL && document.activeElement !== emailRef.current) {
+      emailRef.current?.focus();
+    } else if (keyboardTarget === NAV.PASSWORD && document.activeElement !== passwordRef.current) {
+      passwordRef.current?.focus();
+    }
+  }, [currentFocus, keyboardTarget, showKeyboard]);
+
+  // Keyboard action handlers
+  const handleKeyboardInput = useCallback((val: string) => {
+    if (keyboardTarget === NAV.EMAIL) setEmail(e => e + val);
+    else if (keyboardTarget === NAV.PASSWORD) setPassword(p => p + val);
+  }, [keyboardTarget]);
+
+  const handleKeyboardBackspace = useCallback(() => {
+    if (keyboardTarget === NAV.EMAIL) setEmail(e => e.slice(0, -1));
+    else if (keyboardTarget === NAV.PASSWORD) setPassword(p => p.slice(0, -1));
+  }, [keyboardTarget]);
+
+  const handleKeyboardClear = useCallback(() => {
+    if (keyboardTarget === NAV.EMAIL) setEmail("");
+    else if (keyboardTarget === NAV.PASSWORD) setPassword("");
+  }, [keyboardTarget]);
+
+  const handleKeyboardConfirm = useCallback(() => {
+    if (keyboardTarget === NAV.EMAIL) {
+      setActiveScope(SCOPES.LOGIN);
+      setFocus(NAV.PASSWORD);
+    } else if (keyboardTarget === NAV.PASSWORD) {
+      setActiveScope(SCOPES.LOGIN);
+      setFocus(NAV.BUTTON);
+    }
+    setShowKeyboard(false);
+    setKeyboardTarget(null);
+  }, [keyboardTarget, setActiveScope, setFocus]);
+  
+  const openKeyboard = useCallback((target: typeof NAV.EMAIL | typeof NAV.PASSWORD) => {
+    if (windowWidth > 1024) {
+      setKeyboardTarget(target);
+      setShowKeyboard(true);
+      setActiveScope(SCOPES.KEYBOARD);
+    }
+  }, [windowWidth, setActiveScope]);
+
+  // Global handler to close keyboard
+  useEffect(() => {
+    const handleGlobalClose = (e: KeyboardEvent) => {
+      if (!showKeyboard) return;
+
+      // Always close on Escape
+      if (e.key === 'Escape') {
+        closeKeyboard();
+        e.preventDefault();
+        return;
+      }
+
+      // Close on Backspace ONLY if the keyboard scope is active
+      if (e.key === 'Backspace' && activeScope === SCOPES.KEYBOARD) {
+        closeKeyboard();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalClose);
+    return () => window.removeEventListener('keydown', handleGlobalClose);
+  }, [showKeyboard, closeKeyboard, activeScope]);
+
+  // Form item action handlers
+  const handleEmailAction = useCallback((action: NavigationAction) => {
+    if (action === 'confirm') openKeyboard(NAV.EMAIL);
+  }, [openKeyboard]);
+
+  const handlePasswordAction = useCallback((action: NavigationAction) => {
+    if (action === 'confirm') openKeyboard(NAV.PASSWORD);
+  }, [openKeyboard]);
+
+  const handleButtonAction = useCallback((action: NavigationAction) => {
+    if (action === 'confirm') {
+      handleSubmitRef.current();
+    }
+  }, []);
+
+  const handleRememberAction = useCallback((action: NavigationAction) => {
+    if (action === 'confirm') {
+      setRemember(r => !r);
+    }
+  }, []);
+
+  const handleForgotAction = useCallback((action: NavigationAction) => {
+    if (action === 'confirm') {
+      // Simulate click on the link
+      (document.querySelector(`[data-nav-id="${NAV.FORGOT}"] a`) as HTMLElement)?.click();
+      console.log('Forgot password action triggered');
+    }
+  }, []);
+
+  const handleHelpAction = useCallback((action: NavigationAction) => {
+    if (action === 'confirm') {
+      // Simulate click on the link
+       (document.querySelector(`[data-nav-id="${NAV.HELP}"] div`) as HTMLElement)?.click();
+      console.log('Help action triggered');
+    }
+  }, []);
+  
+  // Styles optimized with useMemo
+  const loginMainRowStyle = useMemo(() => ({
+    display: "flex",
+    flexDirection: "column" as "column",
+    justifyContent: "center",
+    alignItems: "center",
+    width: '100%',
+    minHeight: '100vh',
+    backgroundImage: 'url(/back.png)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    padding: '20px',
+    boxSizing: 'border-box' as 'border-box',
+  }), []);
+
+  const logoContainerStyle = useMemo(() => ({
+    marginBottom: '32px',
+  }), []);
+
+  const loginFormContainerStyle = useMemo(() => ({
+    width: '100%', // Use full width for positioning context
+    height: 400,
+    position: 'relative' as 'relative',
+  }), []);
+
+  const loginFormStyle = useMemo(() => ({
+    background: "rgba(20, 20, 20, 0.95)",
+    padding: '40px',
+    borderRadius: 16,
+    width: 460,
+    height: '100%',
+    boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+    display: "flex",
+    flexDirection: "column" as 'column',
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: 'border-box' as 'border-box',
+    position: 'absolute' as 'absolute', // Make it absolute
+    top: 0,
+    left: '50%',
+    transform: showKeyboard && windowWidth > 1024 ? 'translateX(-100%)' : 'translateX(-50%)', // Dynamic transform
+    transition: 'transform 0.5s cubic-bezier(.4,0,.2,1)', // Transition transform
+    zIndex: 2,
+  }), [showKeyboard, isMobile, windowWidth]);
+  
+  const virtualKeyboardContainerStyle = useMemo(() => ({
+    position: 'absolute' as 'absolute',
+    left: '50%', // Position start at center
+    top: 0,
+    width: '520px',
+    height: '100%',
+    opacity: showKeyboard ? 1 : 0,
+    transform: showKeyboard ? 'translateX(0)' : 'translateX(-50%)',
+    transition: 'transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s cubic-bezier(.4,0,.2,1)',
+    pointerEvents: showKeyboard ? 'auto' : 'none' as 'auto' | 'none',
+    zIndex: 1,
+    boxSizing: 'border-box' as 'border-box',
+  }), [showKeyboard]);
+  
+  // Standardized input style
+  const inputStyle = useCallback((isFocused: boolean) => ({
+    width: "100%",
+    padding: "12px 16px",
+    borderRadius: 8,
+    border: `2px solid ${isFocused ? "#e50914" : "#444"}`,
+    background: "#333",
+    color: "#fff",
+    fontSize: "16px",
+    lineHeight: "1.5",
+    outline: "none",
+    boxSizing: "border-box" as "border-box",
+    transition: 'border-color 0.2s',
+  }), []);
+
   return (
-    <div style={{
-      minHeight: "100dvh",
-      minWidth: "100vw",
-      height: "100dvh",
-      width: "100vw",
-      background: `#111 url('/back.png') center center / cover no-repeat`,
-      color: "#fff",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "flex-start",
-      position: "relative",
-      overflow: 'hidden'
-    }}>
-      <div style={{ flex: 1 }} />
-      <div className="login-title" style={{
-        width: "100%",
-        textAlign: "center",
-        marginTop: 10,
-        marginBottom: 18,
-        overflow: "visible"
-      }}>
-        <span
-          style={{
-            fontFamily: 'Montserrat, sans-serif',
-            fontSize: "clamp(60px, 8vw, 80px)",
-            color: "#fff",
-            fontWeight: 700,
-            letterSpacing: '0.15em',
-            textShadow: "0 6px 32px #000",
-            lineHeight: 1,
-            display: 'inline-block',
-            padding: '0 clamp(8px, 6vw, 48px)',
-            borderRadius: 32,
-            textTransform: 'uppercase',
-            maxWidth: "100%",
-            boxSizing: "border-box",
-            whiteSpace: "nowrap",
-            overflow: "visible",
-          }}
-        >
-          IsaacPlay
-        </span>
+    <div style={loginMainRowStyle}>
+      <div style={logoContainerStyle}>
+        <img src={logoLight} alt="IsaacPlay" style={{ width: 260 }} />
       </div>
-      <div className="login-main-row" style={loginMainRowStyle}>
-        <div style={loginFormContainerStyle}>
-          <form className="login-form" onSubmit={handleSubmit} style={loginFormStyle}>
-            <div style={{ marginBottom: 24, width: "100%" }}>
-              <label style={{ fontWeight: 600, fontSize: 18 }}>Email</label>
-              <input
-                ref={emailRef}
-                type="text"
-                value={email}
-                style={{ width: "100%", padding: 16, borderRadius: 8, border: focusField === "EMAIL" ? "1px solid #e50914" : "none", marginTop: 6, outline: focusField === "EMAIL" ? "1px solid #e50914" : "none", fontSize: 20, background: "#111", color: "#fff" }}
-                onChange={e => setEmail(e.target.value)}
-                onClick={() => { setFocusField("EMAIL"); if (!isMobile) setShowKeyboard("EMAIL"); }}
-                tabIndex={focusField === "EMAIL" ? 0 : -1}
-                autoComplete="email"
-              />
-            </div>
-            <div style={{ marginBottom: 24, width: "100%" }}>
-              <label style={{ fontWeight: 600, fontSize: 18 }}>Senha</label>
-              <input
-                ref={passwordRef}
-                type="password"
-                value={password}
-                style={{ width: "100%", padding: 16, borderRadius: 8, border: focusField === "PASSWORD" ? "1px solid #e50914" : "none", marginTop: 6, outline: focusField === "PASSWORD" ? "1px solid #e50914" : "none", fontSize: 20, background: "#111", color: "#fff" }}
-                onChange={e => setPassword(e.target.value)}
-                onClick={() => { setFocusField("PASSWORD"); if (!isMobile) setShowKeyboard("PASSWORD"); }}
-                tabIndex={focusField === "PASSWORD" ? 0 : -1}
-                autoComplete="current-password"
-              />
-            </div>
-            {error && <div style={{ color: "#f55", marginBottom: 16 }}>{error}</div>}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: 16,
-                borderRadius: 8,
-                background: focusField === "BUTTON" ? "#b00610" : "#e50914",
-                color: "#fff",
-                border: focusField === "BUTTON" ? "1px solid #fff" : "none",
-                fontWeight: "bold",
-                fontSize: 22,
-                outline: focusField === "BUTTON" ? "1px solid #fff" : "none",
-                marginTop: 12
-              }}
-              onClick={() => setFocusField("BUTTON")}
-              tabIndex={focusField === "BUTTON" ? 0 : -1}
-            >
-              {loading ? "Entrando..." : "Entrar"}
-            </button>
-            <div style={{ marginTop: 24, fontSize: 15, color: "#aaa", width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span
-                style={{
-                  display: "flex", alignItems: "center", border: focusField === "REMEMBER" ? "1px solid #e50914" : "none", borderRadius: 6, padding: focusField === "REMEMBER" ? 2 : 0, background: focusField === "REMEMBER" ? "#181818" : "none"
-                }}
-                tabIndex={focusField === "REMEMBER" ? 0 : -1}
-                onClick={() => setFocusField("REMEMBER")}
-              >
+
+      <div style={loginFormContainerStyle}>
+        <form onSubmit={handleSubmit} style={loginFormStyle}>
+          <NavigationItem
+            scope={SCOPES.LOGIN}
+            id={NAV.EMAIL}
+            navigation={navigationMap[NAV.EMAIL]}
+            onAction={handleEmailAction}
+          >
+            {({ ref, isFocused }) => (
+              <div style={{ marginBottom: 24, width: "100%" }}>
+                <label style={{ fontWeight: 600, fontSize: 18, color: '#fff' }}>Email</label>
                 <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={() => setRemember(r => !r)}
-                  style={{ marginRight: 6 }}
-                  tabIndex={-1}
+                  ref={ref as React.RefObject<HTMLInputElement>}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight' && e.currentTarget.selectionStart === email.length) {
+                      e.preventDefault();
+                      openKeyboard(NAV.EMAIL);
+                    }
+                  }}
+                  style={inputStyle(isFocused)}
+                  autoComplete="email"
+                  onClick={() => openKeyboard(NAV.EMAIL)}
                 />
-                Lembrar Email
-              </span>
-              <a
-                href="#"
-                style={{ color: focusField === "FORGOT" ? "#fff" : "#e50914", textDecoration: focusField === "FORGOT" ? "underline" : "none", fontWeight: focusField === "FORGOT" ? "bold" : "normal" }}
-                tabIndex={focusField === "FORGOT" ? 0 : -1}
-                onClick={() => setFocusField("FORGOT")}
-              >
-                Esqueceu a senha?
-              </a>
-            </div>
-          </form>
-          {showKeyboard && (
-            <div className={`virtual-keyboard-bg show`} style={keyboardStyle}>
-              <VirtualKeyboard
-                onInput={handleKeyboardInput}
-                onBackspace={handleKeyboardBackspace}
-                onConfirm={handleKeyboardConfirm}
-                onClear={() => {
-                  if (showKeyboard === "EMAIL") setEmail("");
-                  if (showKeyboard === "PASSWORD") setPassword("");
-                }}
-                onEsc={handleKeyboardEsc}
+              </div>
+            )}
+          </NavigationItem>
+          <NavigationItem
+            scope={SCOPES.LOGIN}
+            id={NAV.PASSWORD}
+            navigation={navigationMap[NAV.PASSWORD]}
+            onAction={handlePasswordAction}
+            disabled={loading}
+          >
+            {({ ref, isFocused }) => (
+              <div style={{ marginBottom: 24, width: "100%" }}>
+                <label style={{ fontWeight: 600, fontSize: 18, color: '#fff' }}>Senha</label>
+                <input
+                  ref={ref as React.RefObject<HTMLInputElement>}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight' && e.currentTarget.selectionStart === password.length) {
+                      e.preventDefault();
+                      openKeyboard(NAV.PASSWORD);
+                    }
+                  }}
+                  style={inputStyle(isFocused)}
+                  autoComplete="current-password"
+                  onClick={() => openKeyboard(NAV.PASSWORD)}
+                />
+              </div>
+            )}
+          </NavigationItem>
+          {error && <div style={{ color: "#f55", marginBottom: 16 }}>{error}</div>}
+          <NavigationItem
+            scope={SCOPES.LOGIN}
+            id={NAV.BUTTON}
+            navigation={navigationMap[NAV.BUTTON]}
+            onAction={handleButtonAction}
+            disabled={loading}
+            style={{ 
+              width: '82%', 
+              marginTop: '24px',
+              transition: 'width 0.3s ease-in-out', // Fluid transition for resizing
+            }}
+          >
+            {({ ref, isFocused }) => (
+              <button
+                ref={ref as React.RefObject<HTMLButtonElement>}
+                type="submit"
                 disabled={loading}
-                autoFocus={true}
-              />
-            </div>
+                style={{
+                  ...inputStyle(isFocused),
+                  background: "#e50914",
+                  border: `2px solid ${isFocused ? "#fff" : "#e50914"}`,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                {loading ? "Entrando..." : "Entrar"}
+              </button>
+            )}
+          </NavigationItem>
+          <div style={{ marginTop: 24, fontSize: 15, color: "#aaa", width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <NavigationItem
+              scope={SCOPES.LOGIN}
+              id={NAV.REMEMBER}
+              navigation={navigationMap[NAV.REMEMBER]}
+              onAction={handleRememberAction}
+              disabled={loading}
+            >
+              {({ ref, isFocused, tabIndex }) => (
+                <span
+                  ref={ref as React.RefObject<HTMLSpanElement>}
+                  className="nav-focus"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    borderRadius: 6,
+                    padding: 2
+                  }}
+                  data-focused={isFocused}
+                  tabIndex={tabIndex}
+                >
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={() => setRemember(r => !r)}
+                    style={{ marginRight: 6 }}
+                    tabIndex={-1}
+                  />
+                  Lembrar Email
+                </span>
+              )}
+            </NavigationItem>
+            <NavigationItem
+              scope={SCOPES.LOGIN}
+              id={NAV.FORGOT}
+              navigation={navigationMap[NAV.FORGOT]}
+              onAction={handleForgotAction}
+              disabled={loading}
+            >
+              {({ ref, isFocused, tabIndex }) => (
+                <a
+                  ref={ref as React.RefObject<HTMLAnchorElement>}
+                  href="#"
+                  className="nav-focus-text"
+                  style={{ color: "#e50914" }}
+                  data-focused={isFocused}
+                  tabIndex={tabIndex}
+                >
+                  Esqueceu a senha?
+                </a>
+              )}
+            </NavigationItem>
+          </div>
+        </form>
+
+        <div style={virtualKeyboardContainerStyle}>
+          {showKeyboard && windowWidth > 1024 && (
+            <VirtualKeyboard
+              scope={SCOPES.KEYBOARD}
+              onInput={handleKeyboardInput}
+              onBackspace={handleKeyboardBackspace}
+              onConfirm={handleKeyboardConfirm}
+              onClear={handleKeyboardClear}
+              onEsc={closeKeyboard}
+              style={{
+                background: 'rgba(20, 20, 20, 0.7)',
+                borderRadius: '16px',
+                padding: '20px',
+                boxSizing: 'border-box' as 'border-box',
+                height: '100%',
+                width: '100%',
+              }}
+            />
           )}
         </div>
       </div>
-      <div style={{ flex: 2 }} />
-      <div
-        style={{ position: "absolute", bottom: 24, left: 0, right: 0, textAlign: "center", color: focusField === "HELP" ? "#fff" : "#888", fontSize: 13, fontWeight: focusField === "HELP" ? "bold" : "normal", textDecoration: focusField === "HELP" ? "underline" : "none", cursor: "pointer" }}
-        tabIndex={focusField === "HELP" ? 0 : -1}
-        onClick={() => setFocusField("HELP")}
+      
+      <NavigationItem
+        scope={SCOPES.LOGIN}
+        id={NAV.HELP}
+        navigation={navigationMap[NAV.HELP]}
+        onAction={handleHelpAction}
+        disabled={loading}
       >
-        Precisa de ajuda para entrar? Visite <span style={{ color: focusField === "HELP" ? "#e50914" : "#e50914", fontWeight: "bold" }}>helpisaacplay.com</span>
-      </div>
+        {({ ref, isFocused, tabIndex }) => (
+          <div
+            ref={ref as React.RefObject<HTMLDivElement>}
+            className="nav-focus-text"
+            style={{
+              position: "absolute",
+              bottom: 24,
+              left: 0,
+              right: 0,
+              textAlign: "center",
+              color: "#888",
+              fontSize: 13,
+              cursor: "pointer"
+            }}
+            data-focused={isFocused}
+            tabIndex={tabIndex}
+          >
+            Precisa de ajuda para entrar? Visite <span style={{ color: "#e50914", fontWeight: "bold" }}>helpisaacplay.com</span>
+          </div>
+        )}
+      </NavigationItem>
     </div>
   );
 } 

@@ -20,22 +20,11 @@ body {
     align-items: center !important;
     margin-right: 0 !important;
   }
-  .login-form {
-    margin-right: 0 !important;
-    max-width: 95vw !important;
-  }
-  .virtual-keyboard-bg {
-    display: none !important;
-  }
 }
 
 @media (max-width: 500px) {
   .login-title span {
     font-size: 40px !important;
     padding: 0 12px !important;
-  }
-  .login-form {
-    padding: 16px !important;
-    min-width: 0 !important;
   }
 }

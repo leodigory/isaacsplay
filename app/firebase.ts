@@ -1,5 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA2WL1y3hRd1YLHjXPUG7bQzJ6s8pH4Ob8",
@@ -12,6 +13,7 @@ const firebaseConfig = {
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
+let db: Firestore | null = null;
 
 // Só inicializa o Firebase no cliente (browser)
 if (typeof window !== 'undefined') {
@@ -19,15 +21,17 @@ if (typeof window !== 'undefined') {
     // Inicializa o app apenas se não existir
     app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
     
-    // Exporta a instância de autenticação
+    // Exporta as instâncias
     auth = getAuth(app);
+    db = getFirestore(app);
     
   } catch (error) {
     console.error("Erro ao inicializar Firebase:", error);
     // Em caso de erro, cria uma instância vazia para evitar crashes
     app = null;
     auth = null;
+    db = null;
   }
 }
 
-export { auth }; 
+export { auth, db }; 
